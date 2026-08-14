@@ -115,17 +115,38 @@ body {
   color: #856404;
 }
 
-.result-banner > div {
+.result-content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.success-section,
+.failure-section {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.result-banner > div > div {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.failure-details {
+  font-size: 13px;
+  margin: 6px 0;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 3px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.failure-item {
+  margin: 2px 0;
+  font-family: 'Monaco', 'Courier New', monospace;
+}
+
+.failure-item strong {
+  font-weight: 600;
+  margin-right: 4px;
 }
 
 .retry-link {
@@ -137,6 +158,7 @@ body {
   padding: 0;
   font-size: inherit;
   font-weight: 500;
+  align-self: flex-start;
 }
 
 .retry-link:hover {

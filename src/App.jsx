@@ -86,55 +86,57 @@ export default function App() {
     setArchiving(true);
     setArchiveResult(null);
 
-    try {
-      const res = await fetch('/api/items/batch/archive', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: Array.from(selected) }),
-      });
+    const selectedArray = Array.from(selected);
+    const succeeded = [];
+    const failed = [];
 
-      const result = await res.json();
+    // Archive items sequentially (the API only supports single-item archive)
+    for (const id of selectedArray) {
+      try {
+        const res = await fetch(`/api/items/${id}/archive`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
 
-      // Handle error responses from the API
-      if (!res.ok || result.error) {
-        setArchiveResult({
-          succeeded: [],
-          failed: Array.from(selected).map(id => ({
+        const data = await res.json();
+
+        if (!res.ok || data.error) {
+          // API returned an error
+          failed.push({
             id,
-            error: result.error || {
-              code: 'SERVER_ERROR',
+            error: data.error || {
+              code: 'unknown_error',
               message: `Server returned status ${res.status}`,
             },
-          })),
-        });
-        setArchiving(false);
-        return;
-      }
-
-      setArchiveResult(result);
-      setArchiving(false);
-
-      // Remove successfully archived items from the list and selection
-      if (result.succeeded && result.succeeded.length > 0) {
-        const archivedIds = new Set(result.succeeded.map(item => item.id));
-        setItems(prev => prev.filter(item => !archivedIds.has(item.id)));
-        setSelected(prev => {
-          const next = new Set(prev);
-          archivedIds.forEach(id => next.delete(id));
-          return next;
+          });
+        } else {
+          // Success
+          succeeded.push(data.item);
+        }
+      } catch (err) {
+        // Network error
+        failed.push({
+          id,
+          error: {
+            code: 'network_error',
+            message: err.message,
+          },
         });
       }
-    } catch (err) {
-      setArchiveResult({
-        succeeded: [],
-        failed: selected.size > 0
-          ? Array.from(selected).map(id => ({
-              id,
-              error: { code: 'NETWORK_ERROR', message: err.message },
-            }))
-          : [],
+    }
+
+    setArchiveResult({ succeeded, failed });
+    setArchiving(false);
+
+    // Remove successfully archived items from the list and selection
+    if (succeeded.length > 0) {
+      const archivedIds = new Set(succeeded.map(item => item.id));
+      setItems(prev => prev.filter(item => !archivedIds.has(item.id)));
+      setSelected(prev => {
+        const next = new Set(prev);
+        archivedIds.forEach(id => next.delete(id));
+        return next;
       });
-      setArchiving(false);
     }
   }
 
@@ -196,17 +198,26 @@ export default function App() {
             archiveResult.failed?.length > 0 ? 'partial' : 'success'
           }`}
         >
-          <div>
+          <div className="result-content">
             {archiveResult.succeeded?.length > 0 && (
-              <div>
+              <div className="success-section">
                 ✓ Archived {archiveResult.succeeded.length} lead
                 {archiveResult.succeeded.length !== 1 ? 's' : ''}
               </div>
             )}
             {archiveResult.failed?.length > 0 && (
-              <div>
-                ✗ Failed to archive {archiveResult.failed.length} lead
-                {archiveResult.failed.length !== 1 ? 's' : ''}
+              <div className="failure-section">
+                <div>
+                  ✗ Failed to archive {archiveResult.failed.length} lead
+                  {archiveResult.failed.length !== 1 ? 's' : ''}
+                </div>
+                <div className="failure-details">
+                  {archiveResult.failed.map((fail, idx) => (
+                    <div key={`${fail.id}-${idx}`} className="failure-item">
+                      <strong>ID {fail.id}:</strong> {fail.error.message}
+                    </div>
+                  ))}
+                </div>
                 <button onClick={retryFailed} className="retry-link">
                   Retry failed
                 </button>

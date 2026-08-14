@@ -50,6 +50,13 @@ function generateLead(id) {
 
 // In-memory data store
 let items = Array.from({ length: 20 }, (_, i) => generateLead(i + 1));
+const initialState = JSON.parse(JSON.stringify(items));
+
+// Track which items are locked (simulating real-world concurrent access)
+const lockedItems = new Set();
+
+// Simulate realistic failures: some items fail consistently
+const failingItems = new Set([3, 7, 15]); // These will fail with archive_failed
 
 app.use(express.json());
 
@@ -68,73 +75,73 @@ app.get('/api/items', (req, res) => {
   });
 });
 
-// POST /api/items/batch/archive - Archive multiple items (must come BEFORE parameterized route)
-app.post('/api/items/batch/archive', (req, res) => {
-  const { ids } = req.body;
-
-  if (!Array.isArray(ids)) {
-    return res.status(400).json({
-      error: {
-        code: 'INVALID_REQUEST',
-        message: 'ids must be an array',
-      },
-    });
-  }
-
-  const results = {
-    succeeded: [],
-    failed: [],
-  };
-
-  for (const id of ids) {
-    const item = items.find(i => i.id === id);
-
-    if (!item) {
-      results.failed.push({
-        id,
-        error: { code: 'NOT_FOUND', message: 'Item not found' },
-      });
-    } else if (item.archived) {
-      results.failed.push({
-        id,
-        error: { code: 'ALREADY_ARCHIVED', message: 'Item is already archived' },
-      });
-    } else {
-      item.archived = true;
-      results.succeeded.push(item);
-    }
-  }
-
-  res.json(results);
-});
-
-// POST /api/items/:id/archive - Archive a single item (comes after batch route)
+// POST /api/items/:id/archive - Archive a single lead
+// Intentionally slow and unreliable to simulate real-world conditions
 app.post('/api/items/:id/archive', (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const item = items.find(i => i.id === id);
+  
+  // Simulate network delay (20-500ms)
+  const delay = Math.floor(Math.random() * 480) + 20;
+  
+  setTimeout(() => {
+    const item = items.find(i => i.id === id);
 
-  if (!item) {
-    return res.status(404).json({
-      error: {
-        code: 'NOT_FOUND',
-        message: 'Item not found',
-        id,
-      },
-    });
-  }
+    // Not found
+    if (!item) {
+      return res.status(404).json({
+        error: {
+          code: 'not_found',
+          message: 'Lead does not exist',
+          id,
+        },
+      });
+    }
 
-  if (item.archived) {
-    return res.status(409).json({
-      error: {
-        code: 'ALREADY_ARCHIVED',
-        message: 'Item is already archived',
-        id,
-      },
-    });
-  }
+    // Already archived
+    if (item.archived) {
+      return res.status(409).json({
+        error: {
+          code: 'record_locked',
+          message: 'This lead is currently locked. Another user may be editing it.',
+          id,
+        },
+      });
+    }
 
-  item.archived = true;
-  res.json({ item });
+    // Simulate realistic failure: some items consistently fail
+    // (representing downstream service failures)
+    if (failingItems.has(id) && Math.random() > 0.3) {
+      return res.status(500).json({
+        error: {
+          code: 'archive_failed',
+          message: 'Failed to archive lead. The archive service encountered an error.',
+          id,
+        },
+      });
+    }
+
+    // Simulate occasional record lock (concurrent access)
+    if (Math.random() > 0.85) {
+      return res.status(409).json({
+        error: {
+          code: 'record_locked',
+          message: 'This lead is currently being edited by another user. Please try again.',
+          id,
+        },
+      });
+    }
+
+    // Success: archive the item
+    item.archived = true;
+    res.json({ item });
+  }, delay);
+});
+
+// POST /api/reset - Reset dataset to initial state
+app.post('/api/reset', (req, res) => {
+  items = JSON.parse(JSON.stringify(initialState));
+  lockedItems.clear();
+  res.json({ message: 'Dataset reset', count: items.length });
 });
 
 app.listen(PORT, () => {
