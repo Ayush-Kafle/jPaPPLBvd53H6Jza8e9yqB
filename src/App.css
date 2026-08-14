@@ -1,0 +1,358 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #f5f5f5;
+  color: #333;
+}
+
+.app {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  gap: 24px;
+}
+
+.header h1 {
+  font-size: 32px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.seed {
+  font-size: 12px;
+  color: #999;
+  font-family: 'Monaco', 'Courier New', monospace;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.selection-info {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+  padding: 8px 12px;
+  background: #f0f0f0;
+  border-radius: 4px;
+}
+
+.archive-btn {
+  padding: 10px 16px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.archive-btn:hover:not(:disabled) {
+  background: #c82333;
+  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+.archive-btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 1px 4px rgba(220, 53, 69, 0.3);
+}
+
+.archive-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.error-banner,
+.result-banner {
+  padding: 12px 16px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  gap: 12px;
+}
+
+.error-banner {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  color: #856404;
+}
+
+.result-banner {
+  background: #d4edda;
+  border: 1px solid #28a745;
+  color: #155724;
+}
+
+.result-banner.partial {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  color: #856404;
+}
+
+.result-banner > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.result-banner > div > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.retry-link {
+  background: none;
+  border: none;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+  font-weight: 500;
+}
+
+.retry-link:hover {
+  opacity: 0.8;
+}
+
+.close-result {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 8px;
+  flex-shrink: 0;
+}
+
+.close-result:hover {
+  opacity: 0.7;
+}
+
+.confirmation-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.confirmation-dialog {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.confirmation-dialog h2 {
+  font-size: 18px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.confirmation-dialog p {
+  color: #666;
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+
+.confirmation-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.cancel-btn,
+.confirm-btn {
+  padding: 10px 16px;
+  border-radius: 4px;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cancel-btn {
+  background: #e9ecef;
+  color: #333;
+}
+
+.cancel-btn:hover {
+  background: #dee2e6;
+}
+
+.confirm-btn {
+  background: #dc3545;
+  color: white;
+}
+
+.confirm-btn:hover:not(:disabled) {
+  background: #c82333;
+}
+
+.confirm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.loading,
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: #999;
+  font-size: 16px;
+}
+
+.leads-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.leads-table thead {
+  background: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.leads-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 13px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.leads-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e9ecef;
+  font-size: 14px;
+}
+
+.leads-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.leads-table tbody tr:hover {
+  background: #f8f9fa;
+}
+
+.leads-table tbody tr.selected {
+  background: #e7f3ff;
+}
+
+.leads-table tbody tr.selected:hover {
+  background: #cce5ff;
+}
+
+.checkbox-column {
+  width: 40px;
+  padding: 12px 12px;
+}
+
+.checkbox-column input[type='checkbox'] {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  accent-color: #dc3545;
+}
+
+.leads-table tbody .checkbox-column input[type='checkbox'] {
+  margin: 0;
+}
+
+input[type='checkbox'] {
+  cursor: pointer;
+  accent-color: #dc3545;
+}
+
+/* Indeterminate checkbox styling */
+input[indeterminate] {
+  accent-color: #dc3545;
+}
+
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-actions {
+    flex-direction: column-reverse;
+  }
+
+  .archive-btn {
+    width: 100%;
+  }
+
+  .leads-table {
+    font-size: 12px;
+  }
+
+  .leads-table th,
+  .leads-table td {
+    padding: 8px 12px;
+  }
+}
