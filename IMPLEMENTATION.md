@@ -1,38 +1,45 @@
 # Multi-Select & Archive Implementation
 
 ## Overview
-This document outlines the design and implementation of the multi-select checkbox feature with batch archiving capability for the Leads application.
+Multi-select checkbox feature with batch archiving capability for the Leads application. The implementation handles real-world API behavior including network delays, concurrent access locks, and backend service failures.
+
+## Key Features
+
+✓ **Checkbox-based multi-select** - Clear visual feedback, intuitive UI  
+✓ **Confirmation dialog** - Prevents accidental archiving  
+✓ **Partial success handling** - Some items can fail while others succeed  
+✓ **Detailed error reporting** - Shows specific error codes and messages  
+✓ **Retry capability** - Retry only failed items without re-selecting  
+✓ **Keyboard shortcuts** - Cmd/Ctrl+A to select all, Escape to deselect  
+✓ **Real-world simulation** - Intentional failures and network delays
 
 ## Design Decisions
 
 ### 1. Selection Mechanism: Checkboxes
-**Choice**: Checkbox-based multi-select rather than click-to-select rows
-**Rationale**:
-- More intuitive for users accustomed to selection UI patterns
-- Clear visual feedback of selection state
-- Easier to target specific items without ambiguity
-- Standard desktop/mobile UX pattern
-- Accessibility advantages (explicit click targets)
+**Choice**: Checkbox-based multi-select  
+**Rationale**: Clear visual feedback, standard UX pattern, accessibility advantages
 
-### 2. Batch vs. Sequential Archiving
-**Choice**: Batch endpoint (`POST /api/items/batch/archive`) instead of calling single-item endpoint for each item
-**Rationale**:
-- Single network roundtrip for multiple items (better performance)
-- Better error reporting (can show which items succeeded/failed)
-- Cleaner API design that mirrors the UI intent
-- Reduces server load
-
-### 3. Error Handling Strategy
-**Partial Success Model**: When archiving multiple items, treat each item independently
-- Items that succeed are removed from the list
-- Items that fail are shown with specific error codes
-- User can retry only the failed items
-- Failed items remain in the selection for easy retry
-
+### 2. Sequential Single-Item Archiving
+**Choice**: Call `POST /api/items/:id/archive` for each selected item sequentially  
+**Rationale**: Matches the actual API specification (no batch endpoint exists)  
 **Benefits**:
-- Doesn't lose work when some items succeed
-- Clear feedback about what happened
-- Recovery path without re-selecting items
+- Accurate error reporting per item
+- Partial success handling (some items fail, others succeed)
+- Shows realistic real-world behavior
+- Easy retry of only failed items
+
+### 3. Real-World Error Scenarios
+**Implementation**: Server intentionally produces realistic failures
+- **`archive_failed` (500)**: Items 3, 7, 15 consistently fail (70% of the time)
+- **`record_locked` (409)**: Randomly simulates concurrent access (15% of the time)
+- **`not_found` (404)**: When item doesn't exist
+- **Network delays**: 20-500ms random delay on every request (realistic latency)
+
+**Frontend handles each error with**:
+- Specific error code display
+- User-friendly error message from API
+- Partial success: succeeded items are removed, failed items stay selected
+- Retry button allows retrying only failed items
 
 ### 4. Confirmation Dialog
 **Choice**: Always show confirmation before archiving
@@ -63,44 +70,78 @@ const [archiveResult, setArchiveResult] = useState(null); // Tracks success/fail
 ### API Contract
 
 #### GET /api/items
-Returns only non-archived items:
+Returns only non-archived items (seeded randomly):
 ```json
 {
-  "seed": 6707,
+  "seed": 5144,
   "items": [
-    { "id": 1, "name": "...", "archived": false, ... },
+    { "id": 1, "name": "Michael Garcia", "company": "Digital Ventures", 
+      "email": "user1@example.com", "source": "Inbound", "owner": "Bob",
+      "value": 65463, "lastContact": "2026-07-18", "archived": false },
     ...
   ]
 }
 ```
 
-#### POST /api/items/batch/archive
-Request:
-```json
-{ "ids": [1, 2, 3] }
-```
-
-Response (always 200 for successful processing):
+#### POST /api/items/:id/archive
+Archives a single lead. Response on success (200):
 ```json
 {
-  "succeeded": [
-    { "id": 1, "name": "...", "archived": true, ... },
+  "item": {
+    "id": 1, 
+    "name": "Michael Garcia",
+    "archived": true,
     ...
-  ],
-  "failed": [
-    { "id": 999, "error": { "code": "NOT_FOUND", "message": "..." } }
-  ]
+  }
+}
+```
+
+Response on error:
+```json
+{
+  "error": {
+    "code": "record_locked",  // or "archive_failed", "not_found"
+    "message": "This lead is currently being edited by another user. Please try again.",
+    "id": 1
+  }
+}
+```
+
+| Status | Code | Meaning |
+|--------|------|---------|
+| 409 | `record_locked` | Another user holds a lock / concurrent access |
+| 500 | `archive_failed` | Upstream archive service failure |
+| 404 | `not_found` | Lead does not exist |
+
+**Behavior**: 
+- Intentionally slow (20-500ms per request)
+- Intentionally unreliable (some records fail consistently)
+- Simulates real-world backend conditions
+
+#### POST /api/reset
+Resets dataset to initial state (useful for testing):
+```json
+{
+  "message": "Dataset reset",
+  "count": 20
 }
 ```
 
 ## Error Scenarios Handled
 
-1. **Network Error**: Caught in try/catch, all selected items marked as failed
-2. **Server Error** (500): HTTP status check detects non-200, all items marked failed
-3. **Invalid Request** (400): API returns error object, handled gracefully
-4. **Item Already Archived**: Returns ALREADY_ARCHIVED error code, can be retried
-5. **Item Not Found**: Returns NOT_FOUND error code (edge case if item deleted by another user)
-6. **Partial Success**: 3 succeed, 2 fail → removes succeeded ones, shows failed with retry option
+| Scenario | Behavior |
+|----------|----------|
+| **Archive succeeds** | Item removed from list, count updates |
+| **record_locked error** | Item shown as failed, stays selected for retry |
+| **archive_failed error** | Item shown as failed with "service encountered error", retry option |
+| **not_found error** | Unlikely (edge case), shown with clear message |
+| **Network error** | All items in batch marked failed, full retry available |
+| **Partial success** | Succeeded items removed; failed items shown with details + retry button |
+| **User retries failed items** | Only failed items re-attempted, user doesn't re-select |
+| **Retry succeeds** | Item removed from list, update count |
+| **Retry still fails** | Item shown as still failed, can retry again |
+| **User closes error banner** | Errors dismissed, but data correctly updated |
+| **All items archived** | Empty state displays: "No leads to display" |
 
 ## UX Flow
 
@@ -146,37 +187,61 @@ Response (always 200 for successful processing):
 
 | Scenario | Behavior |
 |----------|----------|
-| User deselects all while confirmation dialog is open | Dialog closes (they likely changed their mind) |
-| User tries to click Archive button while archiving | Button is disabled |
-| User closes browser during archive | Request completes but UI not updated (acceptable) |
-| All items archived | Empty state: "No leads to display" |
-| Header checkbox when partial selection | Indeterminate state visual indicator |
-| User opens DevTools and modifies item | Next refresh fetches fresh data from server |
-| Server returns malformed response | Catch block treats it as network error |
+| User deselects all while confirmation is open | Dialog closes, selection clears |
+| User tries to click Archive while archiving | Button disabled (shows "Archiving...") |
+| Request takes 500ms+ | Button shows loading state, prevents duplicate requests |
+| Some items fail randomly (record_locked) | Those items stay selected for easy retry |
+| Items 3, 7, 15 consistently fail | User sees which items problematic, can retry or skip |
+| User retries after partial failure | Only failed items re-sent, not entire selection |
+| All items in batch fail | Full error details shown, retry available |
+| Browser closed during archive | Request may complete server-side (data safe), UI reflects on reload |
+| API returns malformed response | Caught, treated as network error |
+| Items changed by another user | Next fetch gets fresh data from server |
+| Header checkbox with partial selection | Indeterminate state correctly displayed |
 
 ## Future Improvements
 
-1. **Undo capability**: Keep history of archived items (30-day recall period)
-2. **Selective unarchive**: Add ability to restore archived items
-3. **Bulk operations**: Multiple-select actions beyond archive (e.g., tag, assign)
-4. **Progress bar**: Show progress when archiving 100+ items
-5. **Optimistic updates**: Remove items immediately while request in flight
-6. **Export before archive**: Archive while keeping historical record
-7. **Redo/Undo**: Ctrl+Z to restore recently archived items
-8. **Performance**: Virtual scrolling for 10,000+ items
+1. **Optimistic updates**: Remove items immediately, rollback on error
+2. **Progress bar**: Show visual progress when archiving 10+ items
+3. **Undo capability**: Keep history of archived items for 30-day recall
+4. **Bulk operations**: Multiple actions beyond archive (tag, assign, etc.)
+5. **Virtual scrolling**: Handle 10,000+ items efficiently
+6. **Unarchive**: Add ability to restore archived items
+7. **Export**: Archive while keeping historical record in exports
+8. **Persist selection**: Save multi-select state to localStorage
+9. **Keyboard: Delete to archive**: Alternative to button click
+10. **Analytics**: Track archive success/failure rates for monitoring
 
 ## Testing
 
 The feature has been tested for:
-- ✓ Normal operation (multi-select → archive → removal)
-- ✓ Error handling (partial success, retries, network errors)
+- ✓ Multi-select (checkbox checking/unchecking)
+- ✓ Select all / deselect all functionality
+- ✓ Keyboard shortcuts (Cmd/Ctrl+A, Escape)
+- ✓ Confirmation dialog appears and works
+- ✓ Sequential archive requests (one per item)
+- ✓ Partial success handling (some fail, some succeed)
+- ✓ Error code display (`record_locked`, `archive_failed`, `not_found`)
+- ✓ Retry button functionality
 - ✓ Empty state display
-- ✓ Button state management (enabled/disabled)
-- ✓ Data consistency (counts match after archiving)
-- ✓ API contract validation
-- ✓ Server error responses
+- ✓ Data consistency (counts match)
+- ✓ Network error handling
+- ✓ Malformed response handling
 
-Run test suite:
+**Real-world workflow test:**
+```bash
+./test-real-world.sh
+```
+
+Example output showing partial success:
+```
+✓ Archived 4 leads (IDs: 1, 2, 4, 5)
+✗ Failed to archive 1 lead
+  ID 3: Failed to archive lead. The archive service encountered an error.
+[Retry failed]
+```
+
+**Comprehensive test suite:**
 ```bash
 ./test.sh
 ```
